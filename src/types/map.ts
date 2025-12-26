@@ -12,6 +12,36 @@ export interface MapMarker {
   imageUrl?: string;
   standNumber?: string;
   floor?: number;
+  hallId?: string;
+  // Translations
+  translations?: {
+    [lang: string]: {
+      name?: string;
+      description?: string;
+    };
+  };
+}
+
+export interface NavigationNode {
+  id: string;
+  x: number;
+  y: number;
+  connections: string[]; // IDs of connected nodes
+  hallId: string;
+  isEntryPoint?: boolean;
+}
+
+export interface Hall {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  backgroundImage?: string;
+  translations?: {
+    [lang: string]: {
+      name?: string;
+    };
+  };
 }
 
 export interface FloorPlan {
@@ -21,6 +51,15 @@ export interface FloorPlan {
   height: number;
   markers: MapMarker[];
   backgroundImage?: string;
+  navigationNodes: NavigationNode[];
+  hallId?: string;
+}
+
+export interface Advertisement {
+  id: string;
+  imageUrl: string;
+  duration: number; // in seconds
+  active: boolean;
 }
 
 export const categoryConfig: Record<MarkerCategory, { label: string; color: string; icon: string }> = {
