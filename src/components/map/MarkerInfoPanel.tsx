@@ -1,8 +1,9 @@
-import React from 'react';
-import { X, MapPin, Navigation, Info, Store, Bath, DoorOpen, DoorClosed, UtensilsCrossed, ArrowUpDown, Footprints, Cross } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { X, MapPin, Navigation, Info, Store, Bath, DoorOpen, DoorClosed, UtensilsCrossed, ArrowUpDown, Footprints, Cross, MapPinned, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMapStore } from '@/store/mapStore';
 import { categoryConfig, MarkerCategory } from '@/types/map';
+import { calculateNavigationPath } from '@/lib/pathfinding';
 
 const iconMap: Record<string, React.ElementType> = {
   Store,
@@ -14,10 +15,43 @@ const iconMap: Record<string, React.ElementType> = {
   ArrowUpDown,
   Footprints,
   Cross,
+  MapPinned,
 };
 
 const MarkerInfoPanel: React.FC = () => {
-  const { selectedMarker, setSelectedMarker } = useMapStore();
+  const { 
+    selectedMarker, 
+    setSelectedMarker, 
+    floorPlan, 
+    currentHallId,
+    navigationTarget,
+    setNavigationTarget,
+    setNavigationPath,
+  } = useMapStore();
+
+  // Get kiosk marker (You Are Here point)
+  const kioskMarker = useMemo(() => 
+    floorPlan.markers.find(m => m.category === 'kiosk' && m.hallId === currentHallId),
+    [floorPlan.markers, currentHallId]
+  );
+
+  const handleNavigate = () => {
+    if (!selectedMarker || !kioskMarker) return;
+    
+    const path = calculateNavigationPath(
+      kioskMarker,
+      selectedMarker,
+      floorPlan.navigationNodes
+    );
+    
+    setNavigationPath(path);
+    setNavigationTarget(selectedMarker);
+  };
+
+  const handleClearNavigation = () => {
+    setNavigationPath([]);
+    setNavigationTarget(null);
+  };
 
   if (!selectedMarker) {
     return (
@@ -31,12 +65,21 @@ const MarkerInfoPanel: React.FC = () => {
         <p className="text-lg text-muted-foreground max-w-sm">
           Tap on any stand or facility on the map to view details and get directions.
         </p>
+        
+        {!kioskMarker && (
+          <div className="mt-6 p-4 rounded-xl bg-warning/10 border border-warning/30 max-w-sm">
+            <p className="text-sm text-warning">
+              <strong>Note:</strong> No "You Are Here" kiosk point is set. Navigation will not work until one is added in the admin panel.
+            </p>
+          </div>
+        )}
       </div>
     );
   }
 
   const config = categoryConfig[selectedMarker.category as MarkerCategory];
   const IconComponent = iconMap[config.icon] || MapPin;
+  const isNavigating = navigationTarget?.id === selectedMarker.id;
 
   return (
     <div className="h-full flex flex-col animate-slide-in-right">
@@ -79,7 +122,10 @@ const MarkerInfoPanel: React.FC = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setSelectedMarker(null)}
+            onClick={() => {
+              setSelectedMarker(null);
+              handleClearNavigation();
+            }}
             className="h-12 w-12 rounded-xl hover:bg-secondary"
           >
             <X className="h-6 w-6" />
@@ -88,7 +134,7 @@ const MarkerInfoPanel: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex-1 p-6 space-y-6 overflow-auto">
         {/* Description */}
         <div>
           <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -112,6 +158,18 @@ const MarkerInfoPanel: React.FC = () => {
           </div>
         </div>
 
+        {/* Navigation Status */}
+        {isNavigating && (
+          <div className="p-4 rounded-xl bg-success/10 border border-success/30">
+            <div className="flex items-center gap-3">
+              <Navigation className="h-5 w-5 text-success" />
+              <span className="text-success font-medium">
+                Navigation active - follow the green path
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Image placeholder */}
         {selectedMarker.imageUrl && (
           <div className="aspect-video rounded-xl bg-secondary overflow-hidden">
@@ -124,14 +182,27 @@ const MarkerInfoPanel: React.FC = () => {
         )}
       </div>
 
-      {/* Action Button */}
-      <div className="p-6 pt-0">
-        <Button 
-          className="w-full h-16 text-xl font-semibold rounded-xl bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity"
-        >
-          <Navigation className="h-6 w-6 mr-3" />
-          Navigate Here
-        </Button>
+      {/* Action Buttons */}
+      <div className="p-6 pt-0 space-y-3">
+        {!isNavigating ? (
+          <Button 
+            className="w-full h-16 text-xl font-semibold rounded-xl bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+            onClick={handleNavigate}
+            disabled={!kioskMarker}
+          >
+            <Navigation className="h-6 w-6 mr-3" />
+            {kioskMarker ? 'Navigate Here' : 'Set Kiosk Point First'}
+          </Button>
+        ) : (
+          <Button 
+            className="w-full h-16 text-xl font-semibold rounded-xl"
+            variant="outline"
+            onClick={handleClearNavigation}
+          >
+            <XCircle className="h-6 w-6 mr-3" />
+            Clear Navigation
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -109,7 +109,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   currentHallId: 'hall-1',
   selectedMarker: null,
   searchQuery: '',
-  activeCategories: ['stand', 'toilet', 'entrance', 'exit', 'info', 'food', 'elevator', 'stairs', 'first-aid'],
+  activeCategories: ['stand', 'toilet', 'entrance', 'exit', 'info', 'food', 'elevator', 'stairs', 'first-aid', 'kiosk'],
   isAdminMode: false,
   advertisements: sampleAdvertisements,
   inactivityTimeout: 30,

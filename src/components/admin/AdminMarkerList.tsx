@@ -11,7 +11,7 @@ import { MapMarker, MarkerCategory, categoryConfig } from '@/types/map';
 import { toast } from 'sonner';
 
 const AdminMarkerList: React.FC = () => {
-  const { floorPlan, addMarker, updateMarker, deleteMarker } = useMapStore();
+  const { floorPlan, addMarker, updateMarker, deleteMarker, currentHallId } = useMapStore();
   const [editingMarker, setEditingMarker] = useState<MapMarker | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newMarker, setNewMarker] = useState<Partial<MapMarker>>({
@@ -23,11 +23,23 @@ const AdminMarkerList: React.FC = () => {
     width: 100,
     height: 80,
     standNumber: '',
+    imageUrl: '',
   });
+
+  // Check if kiosk already exists in current hall
+  const kioskExists = floorPlan.markers.some(
+    m => m.category === 'kiosk' && m.hallId === currentHallId
+  );
 
   const handleAddMarker = () => {
     if (!newMarker.name || !newMarker.description) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    // Prevent multiple kiosk markers per hall
+    if (newMarker.category === 'kiosk' && kioskExists) {
+      toast.error('Only one "You Are Here" kiosk point is allowed per hall. Delete the existing one first.');
       return;
     }
 
@@ -38,9 +50,10 @@ const AdminMarkerList: React.FC = () => {
       category: newMarker.category as MarkerCategory,
       x: newMarker.x || 100,
       y: newMarker.y || 100,
-      width: newMarker.width || 100,
-      height: newMarker.height || 80,
+      width: newMarker.category === 'kiosk' ? 60 : (newMarker.width || 100),
+      height: newMarker.category === 'kiosk' ? 60 : (newMarker.height || 80),
       standNumber: newMarker.standNumber,
+      imageUrl: newMarker.imageUrl,
     };
 
     addMarker(marker);
@@ -54,6 +67,7 @@ const AdminMarkerList: React.FC = () => {
       width: 100,
       height: 80,
       standNumber: '',
+      imageUrl: '',
     });
     toast.success('Marker added successfully');
   };
@@ -122,6 +136,15 @@ const AdminMarkerList: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Image URL (optional)</label>
+              <Input
+                value={newMarker.imageUrl}
+                onChange={(e) => setNewMarker({ ...newMarker, imageUrl: e.target.value })}
+                placeholder="https://example.com/image.jpg"
+                className="mt-1 h-12 bg-secondary border-border"
+              />
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">Description *</label>

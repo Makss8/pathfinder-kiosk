@@ -97,10 +97,17 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    touch-action: pan-x pan-y;
+    overscroll-behavior: none;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* Block page zoom on touch devices */
+  html {
+    touch-action: manipulation;
   }
 }
 
