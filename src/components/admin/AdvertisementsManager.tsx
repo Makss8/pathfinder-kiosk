@@ -1,59 +1,115 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, Image, Clock, ToggleLeft, ToggleRight } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Trash2, Clock, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { useMapStore } from '@/store/mapStore';
 import { Advertisement } from '@/types/map';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { Label } from '@/components/ui/label';
+import { useAdvertisements, useAppSettings } from '@/hooks/useSupabaseData';
+import { 
+  useCreateAdvertisement, 
+  useUpdateAdvertisement, 
+  useDeleteAdvertisement, 
+  useUpdateAppSettings,
+  useUploadImage 
+} from '@/hooks/useSupabaseMutations';
 
 const AdvertisementsManager: React.FC = () => {
-  const { 
-    advertisements, 
-    addAdvertisement, 
-    updateAdvertisement, 
-    deleteAdvertisement,
-    inactivityTimeout,
-    setInactivityTimeout,
-  } = useMapStore();
   const { t } = useLanguage();
+  const { data: advertisements = [] } = useAdvertisements();
+  const { data: appSettings } = useAppSettings();
+  const createAd = useCreateAdvertisement();
+  const updateAd = useUpdateAdvertisement();
+  const deleteAd = useDeleteAdvertisement();
+  const updateSettings = useUpdateAppSettings();
+  const uploadImage = useUploadImage();
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newAd, setNewAd] = useState<Partial<Advertisement>>({
     imageUrl: '',
     duration: 5,
     active: true,
   });
 
-  const handleAddAd = () => {
+  const handleImageUpload = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const path = `ads/${Date.now()}-${file.name}`;
+      const url = await uploadImage.mutateAsync({
+        bucket: 'advertisements',
+        file,
+        path,
+      });
+      setNewAd(prev => ({ ...prev, imageUrl: url }));
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      toast.error('Failed to upload image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File size must be less than 10MB');
+        return;
+      }
+      handleImageUpload(file);
+    }
+  };
+
+  const handleAddAd = async () => {
     if (!newAd.imageUrl) {
       toast.error(t('msg.fillRequired'));
       return;
     }
 
-    const ad: Advertisement = {
-      id: `ad-${Date.now()}`,
-      imageUrl: newAd.imageUrl,
-      duration: newAd.duration || 5,
-      active: newAd.active ?? true,
-    };
+    try {
+      await createAd.mutateAsync({
+        imageUrl: newAd.imageUrl,
+        duration: newAd.duration || 5,
+        active: newAd.active ?? true,
+      });
 
-    addAdvertisement(ad);
-    setIsAddDialogOpen(false);
-    setNewAd({ imageUrl: '', duration: 5, active: true });
-    toast.success(t('msg.saved'));
+      setIsAddDialogOpen(false);
+      setNewAd({ imageUrl: '', duration: 5, active: true });
+      toast.success(t('msg.saved'));
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
-  const handleDeleteAd = (id: string) => {
-    deleteAdvertisement(id);
-    toast.success(t('msg.deleted'));
+  const handleDeleteAd = async (id: string) => {
+    try {
+      await deleteAd.mutateAsync(id);
+      toast.success(t('msg.deleted'));
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
-  const handleToggleActive = (id: string, active: boolean) => {
-    updateAdvertisement(id, { active });
+  const handleToggleActive = async (id: string, active: boolean) => {
+    try {
+      await updateAd.mutateAsync({ id, updates: { active } });
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const handleUpdateTimeout = async (seconds: number) => {
+    try {
+      await updateSettings.mutateAsync({ inactivityTimeout: seconds });
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
   return (
@@ -75,8 +131,8 @@ const AdvertisementsManager: React.FC = () => {
             </div>
             <Input
               type="number"
-              value={inactivityTimeout}
-              onChange={(e) => setInactivityTimeout(parseInt(e.target.value) || 30)}
+              value={appSettings?.inactivityTimeout || 30}
+              onChange={(e) => handleUpdateTimeout(parseInt(e.target.value) || 30)}
               className="w-24 h-10 bg-secondary border-border text-center"
               min={5}
               max={300}
@@ -98,14 +154,34 @@ const AdvertisementsManager: React.FC = () => {
             <DialogTitle className="text-2xl font-display">{t('ads.add')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Image Upload */}
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Image URL *</label>
-              <Input
-                value={newAd.imageUrl}
-                onChange={(e) => setNewAd({ ...newAd, imageUrl: e.target.value })}
-                placeholder="https://example.com/image.jpg"
-                className="mt-1 h-12 bg-secondary border-border"
-              />
+              <label className="text-sm font-medium text-muted-foreground">Image *</label>
+              <div className="mt-1 space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full h-12 border-dashed border-2"
+                >
+                  <Upload className="h-5 w-5 mr-2" />
+                  {isUploading ? 'Uploading...' : 'Upload Image'}
+                </Button>
+                <Input
+                  value={newAd.imageUrl}
+                  onChange={(e) => setNewAd({ ...newAd, imageUrl: e.target.value })}
+                  placeholder="Or enter image URL"
+                  className="h-12 bg-secondary border-border"
+                />
+              </div>
             </div>
             {newAd.imageUrl && (
               <div className="aspect-video rounded-lg overflow-hidden bg-secondary">
@@ -138,10 +214,11 @@ const AdvertisementsManager: React.FC = () => {
             </div>
             <Button
               onClick={handleAddAd}
+              disabled={createAd.isPending}
               className="w-full h-12 bg-gradient-primary text-primary-foreground rounded-xl"
             >
               <Plus className="h-5 w-5 mr-2" />
-              {t('ads.add')}
+              {createAd.isPending ? 'Adding...' : t('ads.add')}
             </Button>
           </div>
         </DialogContent>
@@ -182,6 +259,7 @@ const AdvertisementsManager: React.FC = () => {
                     size="icon"
                     variant="ghost"
                     onClick={() => handleDeleteAd(ad.id)}
+                    disabled={deleteAd.isPending}
                     className="h-10 w-10 hover:bg-destructive/20 text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />

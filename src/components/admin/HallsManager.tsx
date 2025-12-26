@@ -8,10 +8,17 @@ import { useMapStore } from '@/store/mapStore';
 import { Hall } from '@/types/map';
 import { toast } from 'sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
+import { useHalls } from '@/hooks/useSupabaseData';
+import { useCreateHall, useUpdateHall, useDeleteHall } from '@/hooks/useSupabaseMutations';
 
 const HallsManager: React.FC = () => {
-  const { halls, addHall, updateHall, deleteHall, currentHallId, setCurrentHall } = useMapStore();
+  const { currentHallId, setCurrentHall } = useMapStore();
   const { t, language } = useLanguage();
+  const { data: halls = [] } = useHalls();
+  const createHall = useCreateHall();
+  const updateHall = useUpdateHall();
+  const deleteHall = useDeleteHall();
+
   const [editingHall, setEditingHall] = useState<Hall | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newHall, setNewHall] = useState<Partial<Hall>>({
@@ -20,39 +27,54 @@ const HallsManager: React.FC = () => {
     height: 600,
   });
 
-  const handleAddHall = () => {
+  const handleAddHall = async () => {
     if (!newHall.name) {
       toast.error(t('msg.fillRequired'));
       return;
     }
 
-    const hall: Hall = {
-      id: `hall-${Date.now()}`,
-      name: newHall.name,
-      width: newHall.width || 900,
-      height: newHall.height || 600,
-    };
+    try {
+      await createHall.mutateAsync({
+        name: newHall.name,
+        width: newHall.width || 900,
+        height: newHall.height || 600,
+      });
 
-    addHall(hall);
-    setIsAddDialogOpen(false);
-    setNewHall({ name: '', width: 900, height: 600 });
-    toast.success(t('msg.saved'));
+      setIsAddDialogOpen(false);
+      setNewHall({ name: '', width: 900, height: 600 });
+      toast.success(t('msg.saved'));
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
-  const handleUpdateHall = () => {
+  const handleUpdateHall = async () => {
     if (!editingHall) return;
-    updateHall(editingHall.id, editingHall);
-    setEditingHall(null);
-    toast.success(t('msg.saved'));
+    
+    try {
+      await updateHall.mutateAsync({
+        id: editingHall.id,
+        updates: editingHall,
+      });
+      setEditingHall(null);
+      toast.success(t('msg.saved'));
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
-  const handleDeleteHall = (id: string) => {
+  const handleDeleteHall = async (id: string) => {
     if (halls.length <= 1) {
       toast.error('Cannot delete the last hall');
       return;
     }
-    deleteHall(id);
-    toast.success(t('msg.deleted'));
+
+    try {
+      await deleteHall.mutateAsync(id);
+      toast.success(t('msg.deleted'));
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
   const getHallName = (hall: Hall) => {
@@ -107,10 +129,11 @@ const HallsManager: React.FC = () => {
             </div>
             <Button
               onClick={handleAddHall}
+              disabled={createHall.isPending}
               className="w-full h-12 bg-gradient-primary text-primary-foreground rounded-xl"
             >
               <Plus className="h-5 w-5 mr-2" />
-              Add Hall
+              {createHall.isPending ? 'Adding...' : 'Add Hall'}
             </Button>
           </div>
         </DialogContent>
@@ -158,10 +181,11 @@ const HallsManager: React.FC = () => {
                       <Button
                         size="sm"
                         onClick={handleUpdateHall}
+                        disabled={updateHall.isPending}
                         className="bg-success text-foreground hover:bg-success/80"
                       >
                         <Save className="h-4 w-4 mr-1" />
-                        Save
+                        {updateHall.isPending ? 'Saving...' : 'Save'}
                       </Button>
                       <Button
                         size="sm"
@@ -200,8 +224,8 @@ const HallsManager: React.FC = () => {
                         size="icon"
                         variant="ghost"
                         onClick={() => handleDeleteHall(hall.id)}
+                        disabled={deleteHall.isPending || halls.length <= 1}
                         className="h-10 w-10 hover:bg-destructive/20 text-destructive"
-                        disabled={halls.length <= 1}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

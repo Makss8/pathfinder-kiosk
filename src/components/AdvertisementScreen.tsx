@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useMapStore } from '@/store/mapStore';
 import { useLanguage } from '@/i18n/LanguageContext';
 import LanguageSwitcher from './LanguageSwitcher';
+import { useAdvertisements } from '@/hooks/useSupabaseData';
 
 interface AdvertisementScreenProps {
   onTouch: () => void;
 }
 
 const AdvertisementScreen: React.FC<AdvertisementScreenProps> = ({ onTouch }) => {
-  const { advertisements } = useMapStore();
+  const { data: advertisements = [] } = useAdvertisements();
   const { t } = useLanguage();
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
@@ -63,14 +63,12 @@ const AdvertisementScreen: React.FC<AdvertisementScreenProps> = ({ onTouch }) =>
         <LanguageSwitcher />
       </div>
       
-      {/* Ad Image */}
       <img
         src={currentAd.imageUrl}
         alt="Advertisement"
         className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
       />
       
-      {/* Overlay with touch prompt */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 flex items-end justify-center pb-16">
         <div className="text-center animate-pulse">
           <p className="text-3xl text-white font-medium drop-shadow-lg">
@@ -79,16 +77,13 @@ const AdvertisementScreen: React.FC<AdvertisementScreenProps> = ({ onTouch }) =>
         </div>
       </div>
 
-      {/* Progress dots */}
       {activeAds.length > 1 && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
           {activeAds.map((_, index) => (
             <div
               key={index}
               className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                index === currentAdIndex
-                  ? 'bg-white scale-110'
-                  : 'bg-white/40'
+                index === currentAdIndex ? 'bg-white scale-110' : 'bg-white/40'
               }`}
             />
           ))}

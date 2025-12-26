@@ -1,19 +1,29 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, Edit, Save, X } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Trash2, Edit, Save, X, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useMapStore } from '@/store/mapStore';
 import { MapMarker, MarkerCategory, categoryConfig } from '@/types/map';
 import { toast } from 'sonner';
+import { useMarkers } from '@/hooks/useSupabaseData';
+import { useCreateMarker, useUpdateMarker, useDeleteMarker, useUploadImage } from '@/hooks/useSupabaseMutations';
 
 const AdminMarkerList: React.FC = () => {
-  const { floorPlan, addMarker, updateMarker, deleteMarker, currentHallId } = useMapStore();
+  const { currentHallId } = useMapStore();
+  const { data: markers = [] } = useMarkers();
+  const createMarker = useCreateMarker();
+  const updateMarker = useUpdateMarker();
+  const deleteMarker = useDeleteMarker();
+  const uploadImage = useUploadImage();
+
   const [editingMarker, setEditingMarker] = useState<MapMarker | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newMarker, setNewMarker] = useState<Partial<MapMarker>>({
     name: '',
     description: '',
@@ -26,62 +36,103 @@ const AdminMarkerList: React.FC = () => {
     imageUrl: '',
   });
 
-  // Check if kiosk already exists in current hall
-  const kioskExists = floorPlan.markers.some(
-    m => m.category === 'kiosk' && m.hallId === currentHallId
-  );
+  const hallMarkers = markers.filter(m => m.hallId === currentHallId);
+  const kioskExists = hallMarkers.some(m => m.category === 'kiosk');
 
-  const handleAddMarker = () => {
+  const handleImageUpload = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const path = `markers/${Date.now()}-${file.name}`;
+      const url = await uploadImage.mutateAsync({
+        bucket: 'marker-images',
+        file,
+        path,
+      });
+      setNewMarker(prev => ({ ...prev, imageUrl: url }));
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      toast.error('Failed to upload image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('File size must be less than 5MB');
+        return;
+      }
+      handleImageUpload(file);
+    }
+  };
+
+  const handleAddMarker = async () => {
     if (!newMarker.name || !newMarker.description) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    // Prevent multiple kiosk markers per hall
     if (newMarker.category === 'kiosk' && kioskExists) {
       toast.error('Only one "You Are Here" kiosk point is allowed per hall. Delete the existing one first.');
       return;
     }
 
-    const marker: MapMarker = {
-      id: `marker-${Date.now()}`,
-      name: newMarker.name,
-      description: newMarker.description,
-      category: newMarker.category as MarkerCategory,
-      x: newMarker.x || 100,
-      y: newMarker.y || 100,
-      width: newMarker.category === 'kiosk' ? 60 : (newMarker.width || 100),
-      height: newMarker.category === 'kiosk' ? 60 : (newMarker.height || 80),
-      standNumber: newMarker.standNumber,
-      imageUrl: newMarker.imageUrl,
-    };
+    try {
+      await createMarker.mutateAsync({
+        name: newMarker.name,
+        description: newMarker.description || '',
+        category: newMarker.category as MarkerCategory,
+        x: newMarker.x || 100,
+        y: newMarker.y || 100,
+        width: newMarker.category === 'kiosk' ? 60 : (newMarker.width || 100),
+        height: newMarker.category === 'kiosk' ? 60 : (newMarker.height || 80),
+        standNumber: newMarker.standNumber,
+        imageUrl: newMarker.imageUrl,
+        hallId: currentHallId,
+      });
 
-    addMarker(marker);
-    setIsAddDialogOpen(false);
-    setNewMarker({
-      name: '',
-      description: '',
-      category: 'stand',
-      x: 100,
-      y: 100,
-      width: 100,
-      height: 80,
-      standNumber: '',
-      imageUrl: '',
-    });
-    toast.success('Marker added successfully');
+      setIsAddDialogOpen(false);
+      setNewMarker({
+        name: '',
+        description: '',
+        category: 'stand',
+        x: 100,
+        y: 100,
+        width: 100,
+        height: 80,
+        standNumber: '',
+        imageUrl: '',
+      });
+      toast.success('Marker added successfully');
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
-  const handleUpdateMarker = () => {
+  const handleUpdateMarker = async () => {
     if (!editingMarker) return;
-    updateMarker(editingMarker.id, editingMarker);
-    setEditingMarker(null);
-    toast.success('Marker updated successfully');
+    
+    try {
+      await updateMarker.mutateAsync({
+        id: editingMarker.id,
+        updates: editingMarker,
+      });
+      setEditingMarker(null);
+      toast.success('Marker updated successfully');
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
-  const handleDeleteMarker = (id: string) => {
-    deleteMarker(id);
-    toast.success('Marker deleted successfully');
+  const handleDeleteMarker = async (id: string) => {
+    try {
+      await deleteMarker.mutateAsync(id);
+      toast.success('Marker deleted successfully');
+    } catch (error) {
+      // Error handled by mutation
+    }
   };
 
   return (
@@ -94,7 +145,7 @@ const AdminMarkerList: React.FC = () => {
             Add New Marker
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-lg bg-card border-border">
+        <DialogContent className="max-w-lg bg-card border-border max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-display">Add New Marker</DialogTitle>
           </DialogHeader>
@@ -137,15 +188,47 @@ const AdminMarkerList: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+            
+            {/* Image Upload */}
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Image URL (optional)</label>
-              <Input
-                value={newMarker.imageUrl}
-                onChange={(e) => setNewMarker({ ...newMarker, imageUrl: e.target.value })}
-                placeholder="https://example.com/image.jpg"
-                className="mt-1 h-12 bg-secondary border-border"
-              />
+              <label className="text-sm font-medium text-muted-foreground">Photo</label>
+              <div className="mt-1 space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full h-12 border-dashed border-2"
+                >
+                  <Upload className="h-5 w-5 mr-2" />
+                  {isUploading ? 'Uploading...' : 'Upload Photo'}
+                </Button>
+                <Input
+                  value={newMarker.imageUrl}
+                  onChange={(e) => setNewMarker({ ...newMarker, imageUrl: e.target.value })}
+                  placeholder="Or enter image URL"
+                  className="h-12 bg-secondary border-border"
+                />
+                {newMarker.imageUrl && (
+                  <div className="aspect-video rounded-lg overflow-hidden bg-secondary">
+                    <img 
+                      src={newMarker.imageUrl} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover"
+                      onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/400x225?text=Invalid+URL')}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
+
             <div>
               <label className="text-sm font-medium text-muted-foreground">Description *</label>
               <Textarea
@@ -195,10 +278,11 @@ const AdminMarkerList: React.FC = () => {
             </div>
             <Button
               onClick={handleAddMarker}
+              disabled={createMarker.isPending}
               className="w-full h-12 bg-gradient-primary text-primary-foreground rounded-xl"
             >
               <Plus className="h-5 w-5 mr-2" />
-              Add Marker
+              {createMarker.isPending ? 'Adding...' : 'Add Marker'}
             </Button>
           </div>
         </DialogContent>
@@ -206,7 +290,7 @@ const AdminMarkerList: React.FC = () => {
 
       {/* Markers List */}
       <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
-        {floorPlan.markers.map((marker) => {
+        {hallMarkers.map((marker) => {
           const config = categoryConfig[marker.category];
           const isEditing = editingMarker?.id === marker.id;
 
@@ -238,14 +322,21 @@ const AdminMarkerList: React.FC = () => {
                       placeholder="Description"
                       className="bg-secondary border-border min-h-[60px]"
                     />
+                    <Input
+                      value={editingMarker.imageUrl || ''}
+                      onChange={(e) => setEditingMarker({ ...editingMarker, imageUrl: e.target.value })}
+                      placeholder="Image URL"
+                      className="h-10 bg-secondary border-border"
+                    />
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         onClick={handleUpdateMarker}
+                        disabled={updateMarker.isPending}
                         className="bg-success text-foreground hover:bg-success/80"
                       >
                         <Save className="h-4 w-4 mr-1" />
-                        Save
+                        {updateMarker.isPending ? 'Saving...' : 'Save'}
                       </Button>
                       <Button
                         size="sm"
@@ -288,6 +379,7 @@ const AdminMarkerList: React.FC = () => {
                         size="icon"
                         variant="ghost"
                         onClick={() => handleDeleteMarker(marker.id)}
+                        disabled={deleteMarker.isPending}
                         className="h-10 w-10 hover:bg-destructive/20 text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
