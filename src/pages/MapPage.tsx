@@ -1,17 +1,93 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import MapHeader from '@/components/map/MapHeader';
 import FloorMap from '@/components/map/FloorMap';
 import SearchPanel from '@/components/map/SearchPanel';
 import MarkerInfoPanel from '@/components/map/MarkerInfoPanel';
+import AdvertisementScreen from '@/components/AdvertisementScreen';
 import { useMapStore } from '@/store/mapStore';
 import { MapMarker } from '@/types/map';
+import { useAdvertisements, useAppSettings, useHalls, useMarkers, useNavigationNodes } from '@/hooks/useSupabaseData';
 
 const MapPage = () => {
-  const { setSelectedMarker } = useMapStore();
+  const { setSelectedMarker, setFloorPlan, inactivityTimeout, setInactivityTimeout } = useMapStore();
+  const [showAdvertisements, setShowAdvertisements] = useState(true);
+  
+  // Fetch data from database
+  const { data: advertisements } = useAdvertisements();
+  const { data: appSettings } = useAppSettings();
+  const { data: halls } = useHalls();
+  const { data: markers } = useMarkers();
+  const { data: navigationNodes } = useNavigationNodes();
+
+  // Update store when data loads
+  useEffect(() => {
+    if (appSettings?.inactivityTimeout) {
+      setInactivityTimeout(appSettings.inactivityTimeout);
+    }
+  }, [appSettings, setInactivityTimeout]);
+
+  useEffect(() => {
+    if (halls && halls.length > 0 && markers && navigationNodes) {
+      const currentHall = halls[0];
+      const hallMarkers = markers.filter(m => m.hallId === currentHall.id);
+      const hallNodes = navigationNodes.filter(n => n.hallId === currentHall.id);
+      
+      setFloorPlan({
+        id: currentHall.id,
+        name: currentHall.name,
+        width: currentHall.width,
+        height: currentHall.height,
+        markers: hallMarkers,
+        navigationNodes: hallNodes,
+        backgroundImage: currentHall.backgroundImage,
+        hallId: currentHall.id,
+      });
+    }
+  }, [halls, markers, navigationNodes, setFloorPlan]);
+
+  // Inactivity timer
+  useEffect(() => {
+    if (showAdvertisements) return;
+
+    let timeout: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        setShowAdvertisements(true);
+      }, inactivityTimeout * 1000);
+    };
+
+    // Events to track for activity
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    events.forEach(event => {
+      document.addEventListener(event, resetTimer);
+    });
+
+    // Start the timer
+    resetTimer();
+
+    return () => {
+      clearTimeout(timeout);
+      events.forEach(event => {
+        document.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [showAdvertisements, inactivityTimeout]);
 
   const handleMarkerClick = (marker: MapMarker) => {
     setSelectedMarker(marker);
   };
+
+  const handleDismissAds = useCallback(() => {
+    setShowAdvertisements(false);
+  }, []);
+
+  // Show advertisements screen
+  if (showAdvertisements) {
+    return <AdvertisementScreen onTouch={handleDismissAds} />;
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

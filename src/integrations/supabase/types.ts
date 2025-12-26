@@ -14,7 +14,242 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      advertisements: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          duration_seconds: number
+          id: string
+          image_url: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          image_url: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          image_url?: string
+        }
+        Relationships: []
+      }
+      app_settings: {
+        Row: {
+          created_at: string
+          id: string
+          inactivity_timeout_seconds: number | null
+          supported_languages: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          inactivity_timeout_seconds?: number | null
+          supported_languages?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          inactivity_timeout_seconds?: number | null
+          supported_languages?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hall_translations: {
+        Row: {
+          hall_id: string
+          id: string
+          language_code: string
+          name: string | null
+        }
+        Insert: {
+          hall_id: string
+          id?: string
+          language_code: string
+          name?: string | null
+        }
+        Update: {
+          hall_id?: string
+          id?: string
+          language_code?: string
+          name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hall_translations_hall_id_fkey"
+            columns: ["hall_id"]
+            isOneToOne: false
+            referencedRelation: "halls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      halls: {
+        Row: {
+          background_image_url: string | null
+          created_at: string
+          height: number
+          id: string
+          name: string
+          updated_at: string
+          width: number
+        }
+        Insert: {
+          background_image_url?: string | null
+          created_at?: string
+          height?: number
+          id?: string
+          name: string
+          updated_at?: string
+          width?: number
+        }
+        Update: {
+          background_image_url?: string | null
+          created_at?: string
+          height?: number
+          id?: string
+          name?: string
+          updated_at?: string
+          width?: number
+        }
+        Relationships: []
+      }
+      marker_translations: {
+        Row: {
+          description: string | null
+          id: string
+          language_code: string
+          marker_id: string
+          name: string | null
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          language_code: string
+          marker_id: string
+          name?: string | null
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          language_code?: string
+          marker_id?: string
+          name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marker_translations_marker_id_fkey"
+            columns: ["marker_id"]
+            isOneToOne: false
+            referencedRelation: "markers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      markers: {
+        Row: {
+          category: Database["public"]["Enums"]["marker_category"]
+          created_at: string
+          description: string | null
+          floor: number | null
+          hall_id: string
+          height: number
+          id: string
+          image_url: string | null
+          name: string
+          stand_number: string | null
+          updated_at: string
+          width: number
+          x: number
+          y: number
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["marker_category"]
+          created_at?: string
+          description?: string | null
+          floor?: number | null
+          hall_id: string
+          height?: number
+          id?: string
+          image_url?: string | null
+          name: string
+          stand_number?: string | null
+          updated_at?: string
+          width?: number
+          x?: number
+          y?: number
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["marker_category"]
+          created_at?: string
+          description?: string | null
+          floor?: number | null
+          hall_id?: string
+          height?: number
+          id?: string
+          image_url?: string | null
+          name?: string
+          stand_number?: string | null
+          updated_at?: string
+          width?: number
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "markers_hall_id_fkey"
+            columns: ["hall_id"]
+            isOneToOne: false
+            referencedRelation: "halls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      navigation_nodes: {
+        Row: {
+          connections: string[] | null
+          created_at: string
+          hall_id: string
+          id: string
+          is_entry_point: boolean | null
+          x: number
+          y: number
+        }
+        Insert: {
+          connections?: string[] | null
+          created_at?: string
+          hall_id: string
+          id?: string
+          is_entry_point?: boolean | null
+          x?: number
+          y?: number
+        }
+        Update: {
+          connections?: string[] | null
+          created_at?: string
+          hall_id?: string
+          id?: string
+          is_entry_point?: boolean | null
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "navigation_nodes_hall_id_fkey"
+            columns: ["hall_id"]
+            isOneToOne: false
+            referencedRelation: "halls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +258,17 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      marker_category:
+        | "stand"
+        | "toilet"
+        | "entrance"
+        | "exit"
+        | "info"
+        | "food"
+        | "elevator"
+        | "stairs"
+        | "first-aid"
+        | "kiosk"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +395,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      marker_category: [
+        "stand",
+        "toilet",
+        "entrance",
+        "exit",
+        "info",
+        "food",
+        "elevator",
+        "stairs",
+        "first-aid",
+        "kiosk",
+      ],
+    },
   },
 } as const
