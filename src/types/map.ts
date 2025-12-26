@@ -1,4 +1,4 @@
-export type MarkerCategory = 'stand' | 'toilet' | 'entrance' | 'exit' | 'info' | 'food' | 'elevator' | 'stairs' | 'first-aid';
+export type MarkerCategory = 'stand' | 'toilet' | 'entrance' | 'exit' | 'info' | 'food' | 'elevator' | 'stairs' | 'first-aid' | 'kiosk';
 
 export interface MapMarker {
   id: string;
@@ -72,4 +72,5 @@ export const categoryConfig: Record<MarkerCategory, { label: string; color: stri
   elevator: { label: 'Elevator', color: '#eab308', icon: 'ArrowUpDown' },
   stairs: { label: 'Stairs', color: '#64748b', icon: 'Footprints' },
   'first-aid': { label: 'First Aid', color: '#dc2626', icon: 'Cross' },
+  kiosk: { label: 'You Are Here', color: '#ec4899', icon: 'MapPinned' },
 };
